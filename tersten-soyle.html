@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tersten Söyle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Düzen: tek sütun, bant makarası gibi soldan sağa akan 3 adım; her adımda dalga formu */
+:root{
+  --ink:#161a24; --panel:#1f2431; --line:#323949;
+  --fg:#ecebe6; --muted:#9aa0ad;
+  --amber:#ffb347; --mint:#7fd1c7; --rec:#ff5d5d;
+  --display:"Bricolage Grotesque",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--fg);font:15px/1.5 var(--display);
+  padding:32px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header h1{font-size:clamp(2.2rem,7vw,3.4rem);font-weight:800;margin:0;line-height:1;letter-spacing:-.02em}
+header h1 .rev{display:inline-block;transform:scaleX(-1);color:var(--amber)}
+header p{color:var(--muted);margin:10px 0 0;max-width:52ch}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.step.locked{opacity:.4;pointer-events:none}
+.head{display:flex;align-items:baseline;gap:10px}
+.num{font:600 12px var(--mono);color:var(--amber);letter-spacing:.08em}
+.head h2{margin:0;font-size:1.15rem;font-weight:800}
+.hint{margin:0;color:var(--muted);font-size:.92rem}
+canvas{width:100%;height:72px;display:block;background:var(--ink);border-radius:8px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+button{font:600 13px var(--mono);letter-spacing:.03em;border:1px solid var(--line);background:transparent;color:var(--fg);
+  padding:10px 14px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+button:hover{border-color:var(--fg)}
+button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.rec{background:var(--rec);border-color:var(--rec);color:#1a0b0b}
+button.rec.on{animation:pulse 1s infinite}
+button.play{background:var(--amber);border-color:var(--amber);color:#1d1406}
+button.play2{background:var(--mint);border-color:var(--mint);color:#0c201d}
+.dot{width:9px;height:9px;border-radius:50%;background:currentColor}
+.timer{font:600 13px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums;align-self:center}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cmp > div{display:flex;flex-direction:column;gap:8px;min-width:0}
+.lbl{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.score{font:800 2rem var(--display);color:var(--mint)}
+.err{color:var(--rec);font-size:.9rem;margin:0}
+footer{color:var(--muted);font:12px var(--mono)}
+label.file{font:12px var(--mono);color:var(--muted);cursor:pointer;text-decoration:underline}
+label.file input{display:none}
+@media (max-width:480px){.cmp{grid-template-columns:1fr}}
+@keyframes pulse{50%{opacity:.6}}
+@media (prefers-reduced-motion:reduce){button.rec.on{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tersten <span class="rev">Söyle</span></h1>
+    <p>Bir kelime ya da kısa cümle kaydet, tersini dinle, duyduğunu taklit et. Senin taklidin tekrar ters çevrilince orijinal cümle çıkıyor mu?</p>
+  </header>
+
+  <section class="step" id="s1">
+    <div class="head"><span class="num">ADIM 1</span><h2>Cümleyi kaydet</h2></div>
+    <p class="hint">2–4 saniyelik bir şey söyle. Örnek: "Merhaba dünya", "Pazartesi geliyor".</p>
+    <canvas id="c1"></canvas>
+    <div class="row">
+      <button class="rec" id="r1"><span class="dot"></span>Kaydet</button>
+      <button id="p1" disabled>▶ Normal dinle</button>
+      <span class="timer" id="t1"></span>
+    </div>
+    <label class="file">Mikrofon yok mu? Ses dosyası seç<input type="file" accept="audio/*" id="f1"></label>
+    <p class="err" id="e1" hidden></p>
+  </section>
+
+  <section class="step locked" id="s2">
+    <div class="head"><span class="num">ADIM 2</span><h2>Tersini dinle</h2></div>
+    <p class="hint">Kulağına geldiği gibi ezberle. İstediğin kadar tekrar dinleyebilirsin.</p>
+    <canvas id="c2"></canvas>
+    <div class="row"><button class="play" id="p2">◀ Tersini çal</button>
+      <button id="slow">Yavaş çal (0.75×)</button></div>
+  </section>
+
+  <section class="step locked" id="s3">
+    <div class="head"><span class="num">ADIM 3</span><h2>Duyduğunu taklit et</h2></div>
+    <p class="hint">Tersini duyduğun sesi olduğu gibi söyle. Uygulama bunu tekrar ters çevirecek.</p>
+    <canvas id="c3"></canvas>
+    <div class="row">
+      <button class="rec" id="r3"><span class="dot"></span>Taklidi kaydet</button>
+      <button id="p3" disabled>▶ Taklidini dinle</button>
+      <span class="timer" id="t3"></span>
+    </div>
+  </section>
+
+  <section class="step locked" id="s4">
+    <div class="head"><span class="num">SONUÇ</span><h2>Ters çevrilmiş taklidin</h2></div>
+    <div class="cmp">
+      <div><span class="lbl">Orijinal</span><canvas id="c4a"></canvas>
+        <button id="p4a">▶ Orijinali çal</button></div>
+      <div><span class="lbl">Senin tersin</span><canvas id="c4b"></canvas>
+        <button class="play2" id="p4b">▶ Sonucu çal</button></div>
+    </div>
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <div><span class="lbl">Benzerlik (kaba tahmin)</span><div class="score" id="score">–</div></div>
+      <button id="again">Yeni tur</button>
+    </div>
+  </section>
+
+  <footer>Kayıtlar yalnızca bu tarayıcı sekmesinde tutulur, hiçbir yere gönderilmez.</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ctx;
+const audio = () => (ctx ||= new (window.AudioContext||window.webkitAudioContext)());
+const S = {orig:null, rev:null, att:null, attRev:null};
+let current = null; // çalan kaynak
+const MAX_SEC = 6;
+
+// --- Ses yardımcıları ---
+function reverse(buf){
+  const out = audio().createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
+  for(let c=0;c<buf.numberOfChannels;c++){
+    const src = buf.getChannelData(c), dst = out.getChannelData(c);
+    for(let i=0,n=src.length;i<n;i++) dst[i] = src[n-1-i];
+  }
+  return out;
+}
+function trim(buf, thr=0.02){ // baştaki/sondaki sessizliği kes
+  const d = buf.getChannelData(0); let a=0, b=d.length-1;
+  while(a<b && Math.abs(d[a])<thr) a++;
+  while(b>a && Math.abs(d[b])<thr) b--;
+  const pad = Math.floor(buf.sampleRate*0.08);
+  a=Math.max(0,a-pad); b=Math.min(d.length-1,b+pad);
+  if(b-a < buf.sampleRate*0.2) return buf;
+  const out = audio().createBuffer(buf.numberOfChannels, b-a+1, buf.sampleRate);
+  for(let c=0;c<buf.numberOfChannels;c++) out.getChannelData(c).set(buf.getChannelData(c).subarray(a,b+1));
+  return out;
+}
+function draw(canvas, buf, color, progress=-1){
+  const dpr = devicePixelRatio||1, w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w*dpr; canvas.height = h*dpr;
+  const g = canvas.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,w,h);
+  if(!buf){ g.strokeStyle='#323949'; g.beginPath(); g.moveTo(0,h/2); g.lineTo(w,h/2); g.stroke(); return; }
+  const d = buf.getChannelData(0), bars = Math.floor(w/3), step = Math.floor(d.length/bars);
+  let peak = 0.0001; for(let i=0;i<d.length;i+=64) peak=Math.max(peak,Math.abs(d[i]));
+  for(let i=0;i<bars;i++){
+    let m=0; for(let j=0;j<step;j+=8) m=Math.max(m,Math.abs(d[i*step+j]||0));
+    const bh = Math.max(2,(m/peak)*(h-10));
+    g.fillStyle = (progress>=0 && i/bars<=progress) ? '#ecebe6' : color;
+    g.fillRect(i*3,(h-bh)/2,2,bh);
+  }
+}
+function play(buf, canvas, color, rate=1){
+  if(current){ try{current.stop()}catch(e){} }
+  const a = audio(); a.resume();
+  const src = a.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
+  src.connect(a.destination); current = src;
+  const t0 = a.currentTime, dur = buf.duration/rate;
+  src.start();
+  (function tick(){
+    const p = (a.currentTime-t0)/dur;
+    if(current!==src || p>=1){ draw(canvas,buf,color); return; }
+    draw(canvas,buf,color,p); requestAnimationFrame(tick);
+  })();
+}
+
+// --- Kayıt ---
+async function record(btn, timerEl, label, onDone){
+  if(btn._rec){ btn._rec.stop(); return; }
+  let stream;
+  try{ stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:true}}); }
+  catch(e){ const er=$('e1'); er.hidden=false; er.textContent='Mikrofona erişilemedi. Tarayıcıda mikrofon iznini aç ya da aşağıdan bir ses dosyası seç.'; return; }
+  const rec = new MediaRecorder(stream), chunks=[];
+  btn._rec = rec; btn.classList.add('on'); btn.lastChild.textContent='Durdur';
+  const start = Date.now();
+  const iv = setInterval(()=>{
+    const s=(Date.now()-start)/1000; timerEl.textContent = s.toFixed(1)+' / '+MAX_SEC+' sn';
+    if(s>=MAX_SEC) rec.stop();
+  },100);
+  rec.ondataavailable = e => chunks.push(e.data);
+  rec.onstop = async ()=>{
+    clearInterval(iv); stream.getTracks().forEach(t=>t.stop());
+    btn._rec=null; btn.classList.remove('on'); btn.lastChild.textContent=label;
+    const blob = new Blob(chunks,{type:rec.mimeType});
+    const buf = await audio().decodeAudioData(await blob.arrayBuffer());
+    timerEl.textContent = buf.duration.toFixed(1)+' sn';
+    onDone(trim(buf));
+  };
+  rec.start();
+}
+
+function setOrig(buf){
+  S.orig = buf; S.rev = reverse(buf);
+  draw($('c1'),S.orig,'#ffb347'); draw($('c2'),S.rev,'#ffb347');
+  $('p1').disabled=false; $('s2').classList.remove('locked'); $('s3').classList.remove('locked');
+  $('e1').hidden=true;
+  play(S.rev,$('c2'),'#ffb347'); // otomatik tersini çal
+}
+function setAttempt(buf){
+  S.att = buf; S.attRev = reverse(buf);
+  draw($('c3'),S.att,'#7fd1c7'); draw($('c4a'),S.orig,'#ffb347'); draw($('c4b'),S.attRev,'#7fd1c7');
+  $('p3').disabled=false; $('s4').classList.remove('locked');
+  $('score').textContent = similarity(S.orig,S.attRev)+'%';
+  play(S.attRev,$('c4b'),'#7fd1c7');
+  $('s4').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});
+}
+
+// Kaba benzerlik: iki sesin ses yüksekliği zarflarını aynı uzunluğa getirip korelasyon
+function envelope(buf,n=80){
+  const d=buf.getChannelData(0), step=Math.floor(d.length/n), e=[];
+  for(let i=0;i<n;i++){ let s=0; for(let j=0;j<step;j++){ const v=d[i*step+j]||0; s+=v*v; } e.push(Math.sqrt(s/step)); }
+  return e;
+}
+function similarity(a,b){
+  const x=envelope(a), y=envelope(b), n=x.length;
+  const mx=x.reduce((p,c)=>p+c)/n, my=y.reduce((p,c)=>p+c)/n;
+  let num=0,dx=0,dy=0;
+  for(let i=0;i<n;i++){ num+=(x[i]-mx)*(y[i]-my); dx+=(x[i]-mx)**2; dy+=(y[i]-my)**2; }
+  const r = num/Math.sqrt(dx*dy||1);
+  const lenPen = Math.min(a.duration,b.duration)/Math.max(a.duration,b.duration);
+  return Math.max(0,Math.round(((r+1)/2)*lenPen*100));
+}
+
+// --- Bağlantılar ---
+$('r1').onclick = ()=> record($('r1'),$('t1'),'Kaydet',setOrig);
+$('r3').onclick = ()=> record($('r3'),$('t3'),'Taklidi kaydet',setAttempt);
+$('p1').onclick = ()=> play(S.orig,$('c1'),'#ffb347');
+$('p2').onclick = ()=> play(S.rev,$('c2'),'#ffb347');
+$('slow').onclick = ()=> play(S.rev,$('c2'),'#ffb347',0.75);
+$('p3').onclick = ()=> play(S.att,$('c3'),'#7fd1c7');
+$('p4a').onclick = ()=> play(S.orig,$('c4a'),'#ffb347');
+$('p4b').onclick = ()=> play(S.attRev,$('c4b'),'#7fd1c7');
+$('f1').onchange = async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{ setOrig(trim(await audio().decodeAudioData(await f.arrayBuffer()))); }
+  catch(err){ const er=$('e1'); er.hidden=false; er.textContent='Bu dosya okunamadı. MP3, WAV ya da M4A dene.'; }
+};
+$('again').onclick = ()=>{
+  Object.keys(S).forEach(k=>S[k]=null);
+  ['s2','s3','s4'].forEach(id=>$(id).classList.add('locked'));
+  ['p1','p3'].forEach(id=>$(id).disabled=true);
+  ['t1','t3'].forEach(id=>$(id).textContent='');
+  $('score').textContent='–';
+  ['c1','c2','c3','c4a','c4b'].forEach(id=>draw($(id),null));
+  window.scrollTo({top:0});
+};
+['c1','c2','c3','c4a','c4b'].forEach(id=>draw($(id),null));
+addEventListener('resize',()=>{
+  draw($('c1'),S.orig,'#ffb347'); draw($('c2'),S.rev,'#ffb347'); draw($('c3'),S.att,'#7fd1c7');
+  draw($('c4a'),S.orig,'#ffb347'); draw($('c4b'),S.attRev,'#7fd1c7');
+});
+</script>
+</body>
+</html>
